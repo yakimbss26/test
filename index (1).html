@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>감정 좌표 실험실 · AI 감정 분류 시뮬레이터</title>
+<style>
+  :root{
+    --paper:#f3f0e8; --ink:#1b2430; --navy:#16243a; --panel:#101c30;
+    --blue:#3b82c4; --line:#d8d2c4;
+    --happy:#e8a33d; --sad:#4a86c5; --surprise:#2fa98a; --neutral:#8a94a0;
+    --grid:rgba(120,160,210,.16); --grid2:rgba(120,160,210,.30);
+    --mono:'Consolas','D2Coding','Menlo',monospace;
+    --kr:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:var(--kr); color:var(--ink); background:var(--paper);
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:26px 26px; background-position:-1px -1px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:22px 18px 70px}
+  header.top{margin-bottom:18px}
+  .kicker{font-family:var(--mono); font-size:12px; letter-spacing:.18em; color:var(--blue); text-transform:uppercase}
+  h1{font-size:clamp(22px,4.4vw,34px); margin:.18em 0 .15em; letter-spacing:-.02em; color:var(--navy)}
+  .sub{color:#5a6573; font-size:14.5px; line-height:1.55; max-width:60ch}
+  .sub b{color:var(--ink)}
+
+  .grid{display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:18px; align-items:start}
+  @media(max-width:880px){ .grid{grid-template-columns:1fr} }
+
+  .card{background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 1px 0 rgba(0,0,0,.02),0 10px 30px -22px rgba(20,40,70,.5)}
+  .stage{padding:14px; background:var(--navy); border:1px solid #0c1525; overflow:hidden; position:relative}
+  .stage .hint{position:absolute; left:16px; top:12px; font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:#7e96bd; z-index:2}
+  svg.face{display:block; width:100%; height:auto; touch-action:none; cursor:default; user-select:none}
+  .handle{cursor:grab}
+  .handle:active{cursor:grabbing}
+
+  .panel{padding:16px 16px 18px}
+  .panel + .panel{margin-top:16px}
+  .label{font-family:var(--mono); font-size:11px; letter-spacing:.14em; color:#8a93a0; text-transform:uppercase; margin-bottom:9px}
+
+  .presets{display:flex; flex-wrap:wrap; gap:8px}
+  .btn{font-family:var(--kr); font-size:13.5px; font-weight:600; border:1px solid var(--line); background:#fff;
+       color:var(--navy); border-radius:9px; padding:8px 13px; cursor:pointer; transition:.12s}
+  .btn:hover{border-color:var(--blue); color:var(--blue)}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{color:#6b7480}
+  .btn.solid{background:var(--navy); color:#fff; border-color:var(--navy)}
+  .btn.solid:hover{background:#22354f; color:#fff}
+
+  .reads{display:grid; grid-template-columns:1fr 1fr; gap:9px}
+  .read{border:1px solid var(--line); border-radius:10px; padding:9px 11px; background:#fbfaf7}
+  .read .k{font-size:11.5px; color:#7b8390}
+  .read .v{font-family:var(--mono); font-size:21px; font-weight:700; color:var(--navy); margin-top:2px; line-height:1}
+  .read .u{font-size:12px; color:#9aa2ad; font-weight:400}
+
+  .coords{font-family:var(--mono); font-size:12px; color:#56606e; line-height:1.85; background:#fbfaf7; border:1px solid var(--line); border-radius:10px; padding:10px 12px}
+  .coords .nm{display:inline-block; width:74px; color:#97a0ac}
+
+  .slider{margin:13px 0}
+  .slider .row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px}
+  .slider .name{font-size:13px; font-weight:600; color:var(--ink)}
+  .slider .val{font-family:var(--mono); font-size:13px; color:var(--blue); font-weight:700}
+  input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:6px; background:#e4e8ee; outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--blue); border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.25); cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:16px; height:16px; border-radius:50%; background:var(--blue); border:3px solid #fff; cursor:pointer}
+
+  .verdict{display:flex; align-items:center; gap:14px; padding:16px; border-radius:12px; color:#fff; transition:background .25s}
+  .verdict .emoji{font-size:40px; line-height:1}
+  .verdict .t1{font-size:12px; opacity:.85; letter-spacing:.1em}
+  .verdict .t2{font-size:30px; font-weight:800; letter-spacing:-.01em; margin-top:1px}
+
+  .rules{margin-top:12px; display:grid; gap:7px}
+  .rule{display:flex; align-items:center; gap:9px; font-size:13px; padding:8px 11px; border:1px solid var(--line); border-radius:9px; background:#fff; color:#5a636f; transition:.18s}
+  .rule .dot{width:9px; height:9px; border-radius:50%; background:#cdd3da; flex:none}
+  .rule code{font-family:var(--mono); font-size:12px; color:#42566e; background:#f1f3f6; padding:1px 6px; border-radius:5px}
+  .rule.active{border-color:currentColor; background:#fff; font-weight:700; box-shadow:inset 3px 0 0 currentColor}
+  .rule.active .dot{background:currentColor}
+
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th,td{padding:7px 9px; border-bottom:1px solid #eee; text-align:center}
+  th{font-size:11.5px; color:#8a93a0; font-weight:600; letter-spacing:.04em; text-transform:uppercase; border-bottom:1px solid var(--line)}
+  td.mono,th.mono{font-family:var(--mono)}
+  .tag{display:inline-block; padding:2px 9px; border-radius:20px; font-size:12px; font-weight:700; color:#fff}
+  .rowtools{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px}
+  .x{cursor:pointer; color:#c0563f; font-weight:700; border:none; background:none; font-size:14px}
+  .empty{color:#9aa2ad; font-size:13px; text-align:center; padding:14px}
+
+  footer{margin-top:26px; font-size:12.5px; color:#8a93a0; line-height:1.7}
+  footer code{font-family:var(--mono)}
+  .pill{font-family:var(--mono); font-size:11px; color:#6b7480; border:1px solid var(--line); border-radius:20px; padding:3px 10px; background:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="kicker">Emotion Coordinate Lab · 부산과학고</div>
+    <h1>감정 좌표 실험실</h1>
+    <p class="sub">얼굴의 <b>특징점(눈·코·입꼬리)</b>을 직접 드래그해 보세요. 입꼬리 <b>각도</b>와 입 <b>너비 비율</b>이 실시간으로 계산되고,
+    아래 <b>규칙 임계값</b>에 따라 컴퓨터가 감정을 예측합니다. 슬라이더를 움직여 "어떤 규칙이 가장 잘 맞는지" 실험해 보세요.</p>
+  </header>
+
+  <div class="grid">
+    <!-- 좌측: 얼굴 좌표판 -->
+    <section class="card stage">
+      <div class="hint">DRAG THE POINTS ▸ 점을 끌어보세요</div>
+      <svg class="face" id="face" viewBox="0 0 360 390" aria-label="얼굴 좌표판"></svg>
+    </section>
+
+    <!-- 우측: 컨트롤 -->
+    <div>
+      <section class="card panel">
+        <div class="label">표정 프리셋</div>
+        <div class="presets">
+          <button class="btn" data-preset="무표정">😐 무표정</button>
+          <button class="btn" data-preset="웃음">🙂 웃음</button>
+          <button class="btn" data-preset="슬픔">🙁 슬픔</button>
+          <button class="btn" data-preset="놀람">😮 놀람</button>
+          <button class="btn" data-preset="분노">😠 분노</button>
+          <button class="btn ghost" id="reset">↺ 초기화</button>
+        </div>
+      </section>
+
+      <section class="card panel">
+        <div class="label">측정값 (실시간)</div>
+        <div class="reads">
+          <div class="read"><div class="k">입꼬리 각도</div><div class="v"><span id="mAngle">0</span><span class="u">°</span></div></div>
+          <div class="read"><div class="k">입 너비 비율</div><div class="v"><span id="mRatio">0.00</span></div></div>
+          <div class="read"><div class="k">눈썹 간격 비율</div><div class="v"><span id="mBrow">0.00</span></div></div>
+          <div class="read"><div class="k">입 너비</div><div class="v"><span id="mWidth">0</span><span class="u">px</span></div></div>
+          <div class="read"><div class="k">눈 간 거리</div><div class="v"><span id="mEye">0</span><span class="u">px</span></div></div>
+        </div>
+        <div class="coords" id="coords" style="margin-top:11px"></div>
+      </section>
+
+      <section class="card panel">
+        <div class="label">감정 분류 규칙 (임계값 조절)</div>
+        <div class="slider">
+          <div class="row"><span class="name">웃음 — 입꼬리 각도 ≥</span><span class="val"><span id="vHappy">12</span>°</span></div>
+          <input type="range" id="sHappy" min="0" max="30" step="1" value="12">
+        </div>
+        <div class="slider">
+          <div class="row"><span class="name">슬픔 — 입꼬리 각도 ≤</span><span class="val"><span id="vSad">-12</span>°</span></div>
+          <input type="range" id="sSad" min="-30" max="0" step="1" value="-12">
+        </div>
+        <div class="slider">
+          <div class="row"><span class="name">놀람 — 너비 비율 ≤</span><span class="val"><span id="vSurp">0.45</span></span></div>
+          <input type="range" id="sSurp" min="0.20" max="0.80" step="0.01" value="0.45">
+        </div>
+        <div class="slider">
+          <div class="row"><span class="name">분노 — 눈썹 간격 비율 ≤</span><span class="val"><span id="vAnger">0.45</span></span></div>
+          <input type="range" id="sAnger" min="0.20" max="0.70" step="0.01" value="0.45">
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 예측 + 규칙 -->
+  <section class="card panel" style="margin-top:18px">
+    <div class="label">컴퓨터의 예측 — 적용된 규칙</div>
+    <div class="verdict" id="verdict">
+      <div class="emoji" id="vEmoji">😐</div>
+      <div><div class="t1">예측 감정 (PREDICTED)</div><div class="t2" id="vText">중립</div></div>
+    </div>
+    <div class="rules" id="rules">
+      <div class="rule" data-rule="1" style="color:#e8a33d"><span class="dot"></span><span>규칙 1 · <code>입꼬리 각도 ≥ 임계값</code> → <b>행복</b></span></div>
+      <div class="rule" data-rule="2" style="color:#d2553f"><span class="dot"></span><span>규칙 2 · <code>눈썹 간격 비율 ≤ 임계값</code> → <b>분노</b></span></div>
+      <div class="rule" data-rule="3" style="color:#4a86c5"><span class="dot"></span><span>규칙 3 · <code>입꼬리 각도 ≤ 임계값</code> → <b>슬픔</b></span></div>
+      <div class="rule" data-rule="4" style="color:#2fa98a"><span class="dot"></span><span>규칙 4 · <code>너비 비율 ≤ 임계값</code> → <b>놀람</b></span></div>
+      <div class="rule" data-rule="0" style="color:#8a94a0"><span class="dot"></span><span>그 외 → <b>중립(무표정)</b></span></div>
+    </div>
+  </section>
+
+  <!-- 특징 막대그래프 -->
+  <section class="card panel" style="margin-top:18px">
+    <div class="label">특징 막대그래프 (실시간) — 막대가 임계값 선을 넘으면 그 감정 신호가 켜집니다</div>
+    <svg id="graph" viewBox="0 0 620 160" style="display:block;width:100%;height:auto;font-family:Malgun Gothic,sans-serif"></svg>
+  </section>
+
+  <!-- 기록표 -->
+  <section class="card panel" style="margin-top:18px">
+    <div class="label">측정 기록 (학습지 표 채우기 · CSV 저장)</div>
+    <div class="rowtools" style="margin-top:0;margin-bottom:10px">
+      <button class="btn solid" id="add">＋ 현재 값 기록 추가</button>
+      <button class="btn" id="csv">⤓ CSV 내보내기</button>
+      <button class="btn ghost" id="clear">기록 모두 지우기</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="tbl">
+        <thead><tr>
+          <th>#</th><th class="mono">각도(°)</th><th class="mono">너비비율</th><th class="mono">눈썹비율</th><th class="mono">입너비</th><th class="mono">눈간거리</th><th>예측 감정</th><th></th>
+        </tr></thead>
+        <tbody id="tbody"><tr><td colspan="8" class="empty">아직 기록이 없습니다. 점을 배치하고 “현재 값 기록 추가”를 눌러보세요.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <span class="pill">offline ready</span> &nbsp; 인터넷 연결 없이 동작하는 단일 HTML 파일입니다.
+    <code>각도 = arctan( (기준선 − 입꼬리 평균높이) ÷ (입 너비 ÷ 2) )</code>,
+    <code>너비 비율 = 입 너비 ÷ 눈 간 거리</code>,
+    <code>눈썹 간격 비율 = 눈썹 안쪽 두 점 사이 거리 ÷ 눈 간 거리</code>.
+    점선은 무표정 기준선이며, 입꼬리가 위로 올라갈수록 각도가 커지고(+), 눈썹을 모아 찌푸릴수록 눈썹 간격 비율이 작아집니다.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var BASE_Y = 255;                 // 무표정 기준선 y
+  var MONOF = "Consolas, D2Coding, Menlo, monospace";
+  var GRID1 = "rgba(120,160,210,.18)", GRID2 = "rgba(120,160,210,.34)";
+  var EMO = {
+    '행복':{c:'#e8a33d', e:'😄'},
+    '분노':{c:'#d2553f', e:'😠'},
+    '슬픔':{c:'#4a86c5', e:'😢'},
+    '놀람':{c:'#2fa98a', e:'😮'},
+    '중립':{c:'#8a94a0', e:'😐'}
+  };
+  // Lb/Rb = 왼/오른 눈썹 안쪽 점
+  var presets = {
+    '무표정':{Le:{x:130,y:150},Re:{x:230,y:150},Lb:{x:150,y:128},Rb:{x:210,y:128},Nose:{x:180,y:205},Lc:{x:146,y:255},Rc:{x:214,y:255}},
+    '웃음':  {Le:{x:130,y:150},Re:{x:230,y:150},Lb:{x:150,y:126},Rb:{x:210,y:126},Nose:{x:180,y:205},Lc:{x:138,y:240},Rc:{x:222,y:240}},
+    '슬픔':  {Le:{x:130,y:150},Re:{x:230,y:150},Lb:{x:148,y:122},Rb:{x:212,y:122},Nose:{x:180,y:205},Lc:{x:150,y:272},Rc:{x:210,y:272}},
+    '놀람':  {Le:{x:130,y:150},Re:{x:230,y:150},Lb:{x:148,y:118},Rb:{x:212,y:118},Nose:{x:180,y:205},Lc:{x:166,y:255},Rc:{x:194,y:255}},
+    '분노':  {Le:{x:130,y:150},Re:{x:230,y:150},Lb:{x:162,y:140},Rb:{x:198,y:140},Nose:{x:180,y:205},Lc:{x:152,y:258},Rc:{x:208,y:258}}
+  };
+  function clone(p){return JSON.parse(JSON.stringify(p));}
+  var P = clone(presets['무표정']);
+  var T = {happy:12, sad:-12, surprise:0.45, anger:0.45};
+  var ORDER = ['Le','Re','Lb','Rb','Nose','Lc','Rc'];
+  var LAB = {Le:'왼쪽 눈',Re:'오른쪽 눈',Lb:'왼눈썹',Rb:'오른눈썹',Nose:'코',Lc:'왼입꼬리',Rc:'오른입꼬리'};
+  var COL = {Le:'#7fc3ff',Re:'#7fc3ff',Lb:'#c3a9ff',Rb:'#c3a9ff',Nose:'#ffd27f',Lc:'#ff9d8a',Rc:'#ff9d8a'};
+
+  var svg = document.getElementById('face');
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function el(tag,attrs){var n=document.createElementNS(SVGNS,tag);for(var k in attrs)n.setAttribute(k,attrs[k]);return n;}
+
+  // ---- 계산 ----
+  function calc(){
+    var width = Math.abs(P.Rc.x - P.Lc.x);
+    var eye   = Math.abs(P.Re.x - P.Le.x);
+    var ratio = eye>0 ? width/eye : 0;
+    var browGap = Math.abs(P.Rb.x - P.Lb.x);
+    var brow = eye>0 ? browGap/eye : 0;               // 눈썹 간격 비율(작을수록 찌푸림)
+    var cornerY = (P.Lc.y + P.Rc.y)/2;
+    var dev = BASE_Y - cornerY;                       // +면 위로(웃음)
+    var angle = Math.atan2(dev, Math.max(width/2,1)) * 180/Math.PI;
+    return {width:width, eye:eye, ratio:ratio, brow:brow, browGap:browGap, angle:angle};
+  }
+  function classify(m){
+    if(m.angle >= T.happy)    return ['행복',1];
+    if(m.brow  <= T.anger)    return ['분노',2];      // 눈썹이 좁게 모임 → 분노
+    if(m.angle <= T.sad)      return ['슬픔',3];
+    if(m.ratio <= T.surprise) return ['놀람',4];
+    return ['중립',0];
+  }
+
+  // ---- 그리기 ----
+  function draw(){
+    var m = calc(); var cls = classify(m); var emo = cls[0], rule = cls[1];
+    var faceCol = EMO[emo].c;
+    svg.innerHTML='';
+
+    // 좌표 격자
+    var i;
+    for(i=0;i<=360;i+=30){ svg.appendChild(el('line',{x1:i,y1:0,x2:i,y2:390,stroke:GRID1,'stroke-width':1})); }
+    for(i=0;i<=390;i+=30){ svg.appendChild(el('line',{x1:0,y1:i,x2:360,y2:i,stroke:GRID1,'stroke-width':1})); }
+
+    // 얼굴 윤곽
+    svg.appendChild(el('ellipse',{cx:180,cy:200,rx:110,ry:135,fill:'rgba(255,255,255,.04)',stroke:'rgba(160,190,225,.35)','stroke-width':2}));
+
+    // 무표정 기준선
+    svg.appendChild(el('line',{x1:60,y1:BASE_Y,x2:300,y2:BASE_Y,stroke:GRID2,'stroke-width':1.5,'stroke-dasharray':'5 5'}));
+    var bl = el('text',{x:304,y:BASE_Y+4,fill:'#6f87ad','font-size':11,'font-family':MONOF}); bl.textContent='기준선'; svg.appendChild(bl);
+
+    // 눈썹 (안쪽 점 Lb/Rb를 끌면 찌푸림이 표현됨)
+    svg.appendChild(el('line',{x1:P.Le.x-24,y1:P.Le.y-26,x2:P.Lb.x,y2:P.Lb.y,stroke:'#aeb9c9','stroke-width':5,'stroke-linecap':'round'}));
+    svg.appendChild(el('line',{x1:P.Rb.x,y1:P.Rb.y,x2:P.Re.x+24,y2:P.Re.y-26,stroke:'#aeb9c9','stroke-width':5,'stroke-linecap':'round'}));
+    // 눈
+    [P.Le,P.Re].forEach(function(e){
+      svg.appendChild(el('ellipse',{cx:e.x,cy:e.y,rx:15,ry:10,fill:'#fff','fill-opacity':.92}));
+      svg.appendChild(el('circle',{cx:e.x,cy:e.y,r:5,fill:'#22303f'}));
+    });
+    // 코
+    svg.appendChild(el('path',{d:'M '+P.Nose.x+' '+(P.Nose.y-18)+' L '+(P.Nose.x-9)+' '+(P.Nose.y+10)+' Q '+P.Nose.x+' '+(P.Nose.y+18)+' '+(P.Nose.x+9)+' '+(P.Nose.y+10),
+      fill:'none',stroke:'#c4cdda','stroke-width':3,'stroke-linecap':'round','stroke-linejoin':'round'}));
+
+    // 입
+    var lc=P.Lc, rc=P.Rc, midX=(lc.x+rc.x)/2, cy=(lc.y+rc.y)/2, dev=BASE_Y-cy;
+    if(m.ratio <= T.surprise){               // 놀람: 둥근 입
+      svg.appendChild(el('ellipse',{cx:midX,cy:cy+8,rx:Math.max(m.width/2,8),ry:18,fill:'#3a1c1c',stroke:faceCol,'stroke-width':4}));
+    } else {
+      var ctrlY = BASE_Y + dev*0.9 + 8;      // 위로 올라가면 U(웃음), 내려가면 ∩(슬픔)
+      svg.appendChild(el('path',{d:'M '+lc.x+' '+lc.y+' Q '+midX+' '+ctrlY+' '+rc.x+' '+rc.y,
+        fill:'none',stroke:faceCol,'stroke-width':5,'stroke-linecap':'round'}));
+    }
+
+    // 입꼬리 보조선(각도 시각화)
+    svg.appendChild(el('line',{x1:lc.x,y1:lc.y,x2:rc.x,y2:rc.y,stroke:'rgba(255,255,255,.25)','stroke-width':1,'stroke-dasharray':'3 4'}));
+
+    // 드래그 핸들
+    ORDER.forEach(function(key){
+      var pt=P[key];
+      var ring=el('circle',{cx:pt.x,cy:pt.y,r:13,fill:'transparent',stroke:COL[key],'stroke-width':2,'stroke-opacity':.55,class:'handle'});
+      var core=el('circle',{cx:pt.x,cy:pt.y,r:5.5,fill:COL[key],class:'handle'});
+      ring.dataset.k=key; core.dataset.k=key;
+      svg.appendChild(ring); svg.appendChild(core);
+      var tx=el('text',{x:pt.x+16,y:pt.y-12,fill:COL[key],'font-size':10.5,'font-family':MONOF});
+      tx.textContent=LAB[key]; svg.appendChild(tx);
+    });
+
+    // 측정값 표시
+    document.getElementById('mAngle').textContent = m.angle.toFixed(1);
+    document.getElementById('mRatio').textContent = m.ratio.toFixed(2);
+    document.getElementById('mBrow').textContent  = m.brow.toFixed(2);
+    document.getElementById('mWidth').textContent = Math.round(m.width);
+    document.getElementById('mEye').textContent   = Math.round(m.eye);
+
+    var ch=''; ORDER.forEach(function(k){
+      ch += '<span class="nm">'+LAB[k]+'</span> ('+Math.round(P[k].x)+', '+Math.round(390-P[k].y)+')<br>';
+    });
+    document.getElementById('coords').innerHTML = ch;
+
+    // 예측 카드
+    var v=document.getElementById('verdict');
+    v.style.background='linear-gradient(135deg,'+faceCol+',rgba(0,0,0,.18))';
+    document.getElementById('vEmoji').textContent=EMO[emo].e;
+    document.getElementById('vText').textContent=emo;
+
+    // 규칙 강조
+    var rs=document.querySelectorAll('#rules .rule');
+    rs.forEach(function(r){ r.classList.toggle('active', +r.dataset.rule===rule); });
+
+    drawGraph(m, emo);
+    last = {angle:m.angle, ratio:m.ratio, brow:m.brow, width:m.width, eye:m.eye, emo:emo};
+  }
+  var last={};
+
+  // ---- 특징 막대그래프 ----
+  function drawGraph(m, emo){
+    var g=document.getElementById('graph'); if(!g) return;
+    g.innerHTML='';
+    var X0=128, X1=560, W=X1-X0;                       // 막대 영역
+    var rows=[
+      {nm:'입꼬리 각도', val:m.angle, min:-30, max:30, ticks:[{v:T.happy,c:EMO['행복'].c},{v:T.sad,c:EMO['슬픔'].c}],
+        unit:'°', hit:(m.angle>=T.happy?EMO['행복'].c:(m.angle<=T.sad?EMO['슬픔'].c:null)), fmt:function(x){return x.toFixed(1);}},
+      {nm:'너비 비율',   val:m.ratio, min:0, max:1, ticks:[{v:T.surprise,c:EMO['놀람'].c}],
+        unit:'', hit:(m.ratio<=T.surprise?EMO['놀람'].c:null), fmt:function(x){return x.toFixed(2);}},
+      {nm:'눈썹 간격 비율', val:m.brow, min:0, max:1, ticks:[{v:T.anger,c:EMO['분노'].c}],
+        unit:'', hit:(m.brow<=T.anger?EMO['분노'].c:null), fmt:function(x){return x.toFixed(2);}}
+    ];
+    function gel(t,a){var n=document.createElementNS(SVGNS,t);for(var k in a)n.setAttribute(k,a[k]);return n;}
+    function px(v,r){ return X0 + (Math.max(r.min,Math.min(r.max,v))-r.min)/(r.max-r.min)*W; }
+    rows.forEach(function(r,i){
+      var y=26+i*46, zero=px(0,r), val=px(r.val,r), barCol=r.hit||'#9aa6b4';
+      // 라벨
+      var lab=gel('text',{x:0,y:y+5,fill:'#3a4655','font-size':13,'font-family':'Malgun Gothic, sans-serif','font-weight':'600'}); lab.textContent=r.nm; g.appendChild(lab);
+      // 트랙
+      g.appendChild(gel('rect',{x:X0,y:y-9,width:W,height:18,rx:9,fill:'#eef0f3'}));
+      // 값 막대 (0 기준에서 값까지)
+      var bx=Math.min(zero,val), bw=Math.abs(val-zero);
+      g.appendChild(gel('rect',{x:bx,y:y-9,width:Math.max(bw,2),height:18,rx:9,fill:barCol,'fill-opacity':r.hit?0.95:0.55}));
+      // 임계값 눈금
+      r.ticks.forEach(function(t){
+        var tx=px(t.v,r);
+        g.appendChild(gel('line',{x1:tx,y1:y-15,x2:tx,y2:y+15,stroke:t.c,'stroke-width':2.5}));
+        var tl=gel('text',{x:tx,y:y-19,fill:t.c,'font-size':10,'font-family':MONOF,'text-anchor':'middle'});
+        tl.textContent=(r.unit==='°'?(t.v>0?'+':'')+t.v:t.v); g.appendChild(tl);
+      });
+      // 값 텍스트
+      var vt=gel('text',{x:X1+8,y:y+5,fill:(r.hit||'#4a5562'),'font-size':13,'font-family':MONOF,'font-weight':'700'});
+      vt.textContent=r.fmt(r.val)+r.unit; g.appendChild(vt);
+    });
+  }
+
+  // ---- 좌표 변환 + 드래그 ----
+  function toSVG(evt){
+    var ctm=svg.getScreenCTM();
+    var x=(evt.clientX-ctm.e)/ctm.a, y=(evt.clientY-ctm.f)/ctm.d;
+    return {x:Math.max(20,Math.min(340,x)), y:Math.max(20,Math.min(370,y))};
+  }
+  var dragKey=null;
+  svg.addEventListener('pointerdown',function(e){
+    var k=e.target.dataset && e.target.dataset.k;
+    if(k){ dragKey=k; svg.setPointerCapture(e.pointerId); e.preventDefault(); }
+  });
+  svg.addEventListener('pointermove',function(e){
+    if(!dragKey) return;
+    var p=toSVG(e); P[dragKey].x=p.x; P[dragKey].y=p.y; draw();
+  });
+  function endDrag(){ dragKey=null; }
+  svg.addEventListener('pointerup',endDrag);
+  svg.addEventListener('pointercancel',endDrag);
+
+  // ---- 버튼/슬라이더 ----
+  document.querySelectorAll('[data-preset]').forEach(function(b){
+    b.addEventListener('click',function(){ P=clone(presets[b.dataset.preset]); draw(); });
+  });
+  document.getElementById('reset').addEventListener('click',function(){ P=clone(presets['무표정']); draw(); });
+
+  function bindSlider(id,valId,key,fix){
+    var s=document.getElementById(id), out=document.getElementById(valId);
+    s.addEventListener('input',function(){ T[key]=parseFloat(s.value); out.textContent=fix?T[key].toFixed(2):T[key]; draw(); });
+  }
+  bindSlider('sHappy','vHappy','happy',false);
+  bindSlider('sSad','vSad','sad',false);
+  bindSlider('sSurp','vSurp','surprise',true);
+  bindSlider('sAnger','vAnger','anger',true);
+
+  // ---- 기록표 / CSV ----
+  var rows=[];
+  function renderTable(){
+    var tb=document.getElementById('tbody');
+    if(!rows.length){ tb.innerHTML='<tr><td colspan="8" class="empty">아직 기록이 없습니다. 점을 배치하고 “현재 값 기록 추가”를 눌러보세요.</td></tr>'; return; }
+    tb.innerHTML='';
+    rows.forEach(function(r,idx){
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td>'+(idx+1)+'</td><td class="mono">'+r.angle.toFixed(1)+'</td><td class="mono">'+r.ratio.toFixed(2)+
+        '</td><td class="mono">'+r.brow.toFixed(2)+'</td><td class="mono">'+Math.round(r.width)+'</td><td class="mono">'+Math.round(r.eye)+
+        '</td><td><span class="tag" style="background:'+EMO[r.emo].c+'">'+r.emo+'</span></td>'+
+        '<td><button class="x" data-i="'+idx+'">✕</button></td>';
+      tb.appendChild(tr);
+    });
+    tb.querySelectorAll('.x').forEach(function(x){
+      x.addEventListener('click',function(){ rows.splice(+x.dataset.i,1); renderTable(); });
+    });
+  }
+  document.getElementById('add').addEventListener('click',function(){
+    var rec={angle:last.angle,ratio:last.ratio,brow:last.brow,width:last.width,eye:last.eye,emo:last.emo,
+             Le:clone(P.Le),Re:clone(P.Re),Lb:clone(P.Lb),Rb:clone(P.Rb),Nose:clone(P.Nose),Lc:clone(P.Lc),Rc:clone(P.Rc)};
+    rows.push(rec); renderTable();
+  });
+  document.getElementById('clear').addEventListener('click',function(){ rows=[]; renderTable(); });
+  document.getElementById('csv').addEventListener('click',function(){
+    var head=['번호','왼눈x','왼눈y','오른눈x','오른눈y','왼눈썹x','왼눈썹y','오른눈썹x','오른눈썹y','코x','코y','왼입꼬리x','왼입꼬리y','오른입꼬리x','오른입꼬리y','입너비','눈간거리','입꼬리각도','너비비율','눈썹간격비율','예측감정'];
+    var lines=[head.join(',')];
+    rows.forEach(function(r,i){
+      function Y(o){return Math.round(390-o.y);}  // 수학 좌표(위쪽 +)
+      lines.push([i+1,Math.round(r.Le.x),Y(r.Le),Math.round(r.Re.x),Y(r.Re),
+        Math.round(r.Lb.x),Y(r.Lb),Math.round(r.Rb.x),Y(r.Rb),Math.round(r.Nose.x),Y(r.Nose),
+        Math.round(r.Lc.x),Y(r.Lc),Math.round(r.Rc.x),Y(r.Rc),
+        Math.round(r.width),Math.round(r.eye),r.angle.toFixed(1),r.ratio.toFixed(3),r.brow.toFixed(3),r.emo].join(','));
+    });
+    var csv='\uFEFF'+lines.join('\r\n');                 // BOM: 엑셀 한글 깨짐 방지
+    var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='감정좌표_측정기록.csv'; document.body.appendChild(a); a.click(); a.remove();
+  });
+
+  draw();
+})();
+</script>
+</body>
+</html>
