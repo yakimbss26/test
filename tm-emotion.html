@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI 감정 인식기 · Teachable Machine 모델 연결</title>
+<style>
+  :root{
+    --paper:#f3f0e8; --ink:#1b2430; --navy:#16243a; --blue:#3b82c4; --line:#d8d2c4;
+    --happy:#e8a33d; --anger:#d2553f; --surprise:#2fa98a; --sad:#4a86c5; --neutral:#8a94a0;
+    --mono:'Consolas','D2Coding','Menlo',monospace;
+    --kr:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:var(--kr); color:var(--ink); background:var(--paper);
+    background-image:linear-gradient(#d8d2c4 1px,transparent 1px),linear-gradient(90deg,#d8d2c4 1px,transparent 1px);
+    background-size:26px 26px; background-position:-1px -1px; -webkit-text-size-adjust:100%;}
+  .wrap{max-width:980px; margin:0 auto; padding:22px 18px 70px}
+  .kicker{font-family:var(--mono); font-size:12px; letter-spacing:.18em; color:var(--blue); text-transform:uppercase}
+  h1{font-size:clamp(22px,4.4vw,32px); margin:.18em 0 .15em; letter-spacing:-.02em; color:var(--navy)}
+  .sub{color:#5a6573; font-size:14.5px; line-height:1.55; max-width:64ch}
+  .sub b{color:var(--ink)}
+  .card{background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 30px -22px rgba(20,40,70,.5); padding:16px 16px 18px; margin-top:16px}
+  .label{font-family:var(--mono); font-size:11px; letter-spacing:.14em; color:#8a93a0; text-transform:uppercase; margin-bottom:10px}
+  .btn{font-family:var(--kr); font-size:13.5px; font-weight:600; border:1px solid var(--line); background:#fff; color:var(--navy); border-radius:9px; padding:9px 14px; cursor:pointer; transition:.12s}
+  .btn:hover{border-color:var(--blue); color:var(--blue)}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.45; cursor:not-allowed}
+  .btn.solid{background:var(--navy); color:#fff; border-color:var(--navy)} .btn.solid:hover{background:#22354f;color:#fff}
+  .btn.ghost{color:#6b7480}
+  .row{display:flex; gap:9px; flex-wrap:wrap; align-items:center}
+  input[type=text]{flex:1; min-width:220px; font-family:var(--mono); font-size:13px; padding:10px 12px; border:1px solid var(--line); border-radius:9px; background:#fbfaf7; color:#243042}
+  input[type=text]:focus{outline:none; border-color:var(--blue)}
+  .how{font-size:12.5px; color:#6b7480; line-height:1.7; margin-top:11px; background:#fbfaf7; border:1px solid var(--line); border-radius:10px; padding:11px 13px}
+  .how b{color:var(--ink)}
+  .or{font-size:12px; color:#9aa2ad; text-align:center; margin:11px 0 9px; letter-spacing:.1em}
+  .status{font-size:13px; margin-top:12px; padding:9px 12px; border-radius:9px; background:#eef2f6; color:#475262; border-left:4px solid #c7cfda}
+  .status.ok{background:#e9f6f0; color:#1e7a4e; border-left-color:#2fa98a}
+  .status.err{background:#fbe9e9; color:#b23a3a; border-left-color:#d2553f}
+
+  .runwrap{display:grid; grid-template-columns:300px minmax(0,1fr); gap:18px; align-items:start}
+  @media(max-width:760px){ .runwrap{grid-template-columns:1fr} }
+  .stage{background:var(--navy); border-radius:12px; padding:12px; display:flex; flex-direction:column; align-items:center; gap:10px}
+  #view{width:260px; height:260px; border-radius:10px; background:#0c1525; display:flex; align-items:center; justify-content:center; overflow:hidden; color:#5d7396; font-size:13px; text-align:center; padding:0 10px}
+  #view canvas,#view img,#view video{width:260px; height:260px; object-fit:cover; border-radius:10px}
+  .modes{display:flex; gap:8px}
+  .mode{font-size:12.5px; font-weight:600; padding:7px 12px; border-radius:8px; cursor:pointer; border:1px solid #2c3e57; color:#a9bcd6; background:transparent}
+  .mode.on{background:var(--blue); border-color:var(--blue); color:#fff}
+
+  .verdict{display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:12px; color:#fff; background:#9aa6b4; transition:background .25s}
+  .verdict .emoji{font-size:42px; line-height:1}
+  .verdict .t1{font-size:12px; opacity:.9; letter-spacing:.08em}
+  .verdict .t2{font-size:26px; font-weight:800; margin-top:1px}
+  .verdict .t3{font-family:var(--mono); font-size:14px; opacity:.95}
+
+  .bars{margin-top:14px; display:grid; gap:9px}
+  .bar{display:grid; grid-template-columns:84px 1fr 52px; align-items:center; gap:10px; font-size:13px}
+  .bar .nm{font-weight:600; color:#3a4655}
+  .track{height:16px; border-radius:8px; background:#eef0f3; overflow:hidden}
+  .fill{height:100%; border-radius:8px; width:0; transition:width .15s}
+  .bar .pc{font-family:var(--mono); font-weight:700; text-align:right; color:#4a5562}
+
+  .humanbtns{display:flex; gap:8px; flex-wrap:wrap; margin:4px 0 2px}
+  .acc{display:flex; align-items:baseline; gap:10px; margin:8px 0 2px}
+  .acc .big{font-family:var(--mono); font-size:34px; font-weight:800; color:var(--navy)}
+  .acc .lbl{font-size:13px; color:#6b7480}
+  table{width:100%; border-collapse:collapse; font-size:13px; margin-top:8px}
+  th,td{padding:7px 9px; border-bottom:1px solid #eee; text-align:center}
+  th{font-size:11.5px; color:#8a93a0; font-weight:600; letter-spacing:.04em; text-transform:uppercase; border-bottom:1px solid var(--line)}
+  td.mono{font-family:var(--mono)}
+  .tag{display:inline-block; padding:2px 9px; border-radius:20px; font-size:12px; font-weight:700; color:#fff}
+  .ynY{color:#1e7a4e; font-weight:700} .ynN{color:#b23a3a; font-weight:700}
+  .x{cursor:pointer; color:#c0563f; font-weight:700; border:none; background:none}
+  .empty{color:#9aa2ad; text-align:center; padding:14px}
+  .hide{display:none !important}
+  footer{margin-top:24px; font-size:12.5px; color:#8a93a0; line-height:1.7}
+  .pill{font-family:var(--mono); font-size:11px; color:#6b7480; border:1px solid var(--line); border-radius:20px; padding:3px 10px; background:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">Teachable Machine · 부산과학고</div>
+    <h1>AI 감정 인식기</h1>
+    <p class="sub">티처블 머신에서 학습한 <b>감정 분류 모델</b>(행복·분노·놀람·슬픔)을 연결하면,
+    웹캠이나 사진으로 <b>실행</b>되어 클래스별 <b>신뢰도(확률)</b>를 보여주고, 사람이 직접 판단한 감정과 비교해
+    <b>일치 정확도</b>를 계산합니다.</p>
+  </header>
+
+  <!-- 1) 모델 연결 -->
+  <section class="card">
+    <div class="label">① 모델 연결</div>
+    <div class="row">
+      <input type="text" id="url" placeholder="https://teachablemachine.withgoogle.com/models/xxxxxxxx/" />
+      <button class="btn solid" id="loadUrl">URL로 불러오기</button>
+    </div>
+    <div class="or">— 또는 —</div>
+    <div class="row">
+      <input type="file" id="files" accept=".json,.bin" multiple style="font-size:13px" />
+      <button class="btn" id="loadFiles">파일로 불러오기</button>
+    </div>
+    <div class="how">
+      <b>모델 URL 얻는 법:</b> 티처블 머신에서 학습 완료 → <b>모델 내보내기(Export Model)</b> →
+      <b>Tensorflow.js</b> 탭 → <b>업로드(공유 가능한 링크)</b> 클릭 → 생성된 주소를 위에 붙여넣기.<br>
+      <b>파일로:</b> 같은 화면에서 <b>다운로드</b>를 누르면 받는 <code>model.json · weights.bin · metadata.json</code> 3개 파일을 모두 선택.
+    </div>
+    <div class="status" id="status">모델을 연결해 주세요. (이 페이지는 인터넷 연결이 필요합니다)</div>
+  </section>
+
+  <!-- 2) 실행 -->
+  <section class="card hide" id="runCard">
+    <div class="label">② 실행 — 웹캠 또는 사진</div>
+    <div class="runwrap">
+      <div>
+        <div class="stage">
+          <div class="modes">
+            <div class="mode on" id="mCam" data-mode="cam">📷 웹캠</div>
+            <div class="mode" id="mImg" data-mode="img">🖼️ 사진</div>
+          </div>
+          <div id="view">여기에 영상/사진이 표시됩니다</div>
+          <div class="row" id="camCtrl" style="justify-content:center">
+            <button class="btn" id="camStart">웹캠 시작</button>
+            <button class="btn ghost" id="camStop" disabled>정지</button>
+          </div>
+          <div class="row hide" id="imgCtrl" style="justify-content:center">
+            <input type="file" id="imgFile" accept="image/*" style="font-size:13px" />
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="verdict" id="verdict">
+          <div class="emoji" id="vEmoji">🙂</div>
+          <div><div class="t1">예측 감정 (PREDICTED)</div><div class="t2" id="vText">대기 중</div><div class="t3" id="vConf"></div></div>
+        </div>
+        <div class="bars" id="bars"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3) 사람 vs AI 비교 -->
+  <section class="card hide" id="cmpCard">
+    <div class="label">③ 사람 vs AI 비교 — 일치 정확도 측정 (학습지 활동 2·4)</div>
+    <p style="font-size:13px;color:#5a6573;margin:.2em 0 .7em">현재 화면의 AI 예측을 확인하고, <b>실제 정답(사람 판단)</b> 버튼을 누르면 기록됩니다.</p>
+    <div class="humanbtns" id="humanBtns"></div>
+    <div class="acc">
+      <span class="big"><span id="accVal">0</span>%</span>
+      <span class="lbl">일치 정확도 (<span id="accHit">0</span> / <span id="accTot">0</span>)</span>
+      <span style="flex:1"></span>
+      <button class="btn" id="csv">⤓ CSV 내보내기</button>
+      <button class="btn ghost" id="clear">기록 지우기</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>#</th><th>AI 예측</th><th class="mono">신뢰도</th><th>사람 정답</th><th>일치</th><th></th></tr></thead>
+        <tbody id="tbody"><tr><td colspan="6" class="empty">아직 기록이 없습니다.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <span class="pill">internet required</span> &nbsp; TensorFlow.js·Teachable Machine 라이브러리와 모델을 인터넷에서 불러옵니다.
+    웹캠은 <b>HTTPS</b>(예: GitHub Pages) 또는 localhost에서만 동작하며, 브라우저의 <b>카메라 권한 허용</b>이 필요합니다.
+    영상은 기기에서만 처리되며 어디에도 전송되지 않습니다.
+  </footer>
+</div>
+
+<!-- Teachable Machine (TensorFlow.js) -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  var EMO = {
+    '행복':{c:'#e8a33d',e:'😄'}, '분노':{c:'#d2553f',e:'😠'},
+    '놀람':{c:'#2fa98a',e:'😮'}, '슬픔':{c:'#4a86c5',e:'😢'},
+    '중립':{c:'#8a94a0',e:'😐'}, '무표정':{c:'#8a94a0',e:'😐'}
+  };
+  var DEF = {c:'#6f7b8a', e:'🙂'};
+  function meta(name){
+    name=(name||'').trim();
+    if(EMO[name]) return EMO[name];
+    for(var k in EMO){ if(name.indexOf(k)>=0) return EMO[k]; }
+    return DEF;
+  }
+
+  var $=function(id){return document.getElementById(id);};
+  var model=null, classes=[], webcam=null, rafId=null, mode='cam', lastPred=null;
+
+  function status(msg, type){ var s=$('status'); s.textContent=msg; s.className='status'+(type?(' '+type):''); }
+
+  // ---------- 모델 로드 ----------
+  function checkLibs(){
+    if(typeof tmImage==='undefined' || typeof tf==='undefined'){
+      status('라이브러리를 불러오지 못했습니다. 인터넷 연결(또는 cdn.jsdelivr.net 접근)을 확인하세요.', 'err');
+      return false;
+    } return true;
+  }
+  async function loadFromURL(){
+    if(!checkLibs()) return;
+    var url=$('url').value.trim();
+    if(!url){ status('모델 URL을 입력하세요.', 'err'); return; }
+    if(url.slice(-1)!=='/') url+='/';
+    status('모델을 불러오는 중...');
+    try{
+      model = await tmImage.load(url+'model.json', url+'metadata.json');
+      await onModelLoaded();
+    }catch(e){ console.error(e); status('모델을 불러오지 못했습니다. URL과 인터넷 연결을 확인하세요.', 'err'); }
+  }
+  async function loadFromFiles(){
+    if(!checkLibs()) return;
+    var fl=$('files').files, mj=null, wb=null, md=null;
+    for(var i=0;i<fl.length;i++){
+      var n=fl[i].name.toLowerCase();
+      if(n.indexOf('metadata')>=0 && n.slice(-5)==='.json') md=fl[i];
+      else if(n.slice(-5)==='.json') mj=fl[i];
+      else if(n.slice(-4)==='.bin') wb=fl[i];
+    }
+    if(!mj||!wb||!md){ status('model.json, weights.bin, metadata.json 3개 파일을 모두 선택하세요.', 'err'); return; }
+    status('모델을 불러오는 중...');
+    try{
+      model = await tmImage.loadFromFiles(mj, wb, md);
+      await onModelLoaded();
+    }catch(e){ console.error(e); status('파일에서 모델을 불러오지 못했습니다.', 'err'); }
+  }
+  async function onModelLoaded(){
+    classes = [];
+    try{ if(model.getClassLabels) classes = model.getClassLabels() || []; }catch(e){}
+    if(!classes.length){
+      try{
+        var cv=document.createElement('canvas'); cv.width=cv.height=200;
+        var p=await model.predict(cv); classes=p.map(function(x){return x.className;});
+      }catch(e){ var n=model.getTotalClasses?model.getTotalClasses():0; for(var i=0;i<n;i++) classes.push('클래스'+(i+1)); }
+    }
+    status('모델 로드 완료 · 클래스 '+classes.length+'개: '+classes.join(', '), 'ok');
+    $('runCard').classList.remove('hide');
+    $('cmpCard').classList.remove('hide');
+    buildBars(); buildHumanButtons(); renderTable();
+    lastPred=null; setVerdict(null);
+  }
+
+  // ---------- 예측 표시 ----------
+  function buildBars(){
+    var b=$('bars'); b.innerHTML='';
+    classes.forEach(function(c){
+      var m=meta(c);
+      var row=document.createElement('div'); row.className='bar';
+      row.innerHTML='<span class="nm">'+m.e+' '+c+'</span><div class="track"><div class="fill" data-c="'+c+'" style="background:'+m.c+'"></div></div><span class="pc" data-pc="'+c+'">0%</span>';
+      b.appendChild(row);
+    });
+  }
+  function setVerdict(pred){
+    var v=$('verdict');
+    if(!pred){ v.style.background='#9aa6b4'; $('vEmoji').textContent='🙂'; $('vText').textContent='대기 중'; $('vConf').textContent=''; return; }
+    var m=meta(pred.className);
+    v.style.background='linear-gradient(135deg,'+m.c+',rgba(0,0,0,.18))';
+    $('vEmoji').textContent=m.e;
+    $('vText').textContent=pred.className;
+    $('vConf').textContent='신뢰도 '+(pred.probability*100).toFixed(1)+'%';
+  }
+  function renderPredictions(preds){
+    // preds: [{className, probability}]
+    var top=preds[0];
+    for(var i=1;i<preds.length;i++){ if(preds[i].probability>top.probability) top=preds[i]; }
+    lastPred={className:top.className, probability:top.probability};
+    preds.forEach(function(p){
+      var pct=Math.round(p.probability*100);
+      var f=document.querySelector('.fill[data-c="'+CSS.escape(p.className)+'"]');
+      var t=document.querySelector('.pc[data-pc="'+CSS.escape(p.className)+'"]');
+      if(f) f.style.width=pct+'%';
+      if(t) t.textContent=pct+'%';
+    });
+    setVerdict(top);
+  }
+  async function predictFrom(source){
+    if(!model) return;
+    try{ var preds=await model.predict(source); renderPredictions(preds); }
+    catch(e){ console.error(e); }
+  }
+
+  // ---------- 웹캠 ----------
+  async function startWebcam(){
+    if(!model){ return; }
+    stopWebcam();
+    try{
+      webcam = new tmImage.Webcam(260,260,true);   // flip = 거울 모드
+      await webcam.setup();
+      await webcam.play();
+      var view=$('view'); view.innerHTML=''; view.appendChild(webcam.canvas);
+      $('camStart').disabled=true; $('camStop').disabled=false;
+      rafId=requestAnimationFrame(camLoop);
+    }catch(e){ console.error(e); status('웹캠을 시작할 수 없습니다. 카메라 권한을 허용했는지, HTTPS(또는 localhost)인지 확인하세요.', 'err'); }
+  }
+  async function camLoop(){
+    if(!webcam) return;
+    webcam.update();
+    await predictFrom(webcam.canvas);
+    rafId=requestAnimationFrame(camLoop);
+  }
+  function stopWebcam(){
+    if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
+    if(webcam){ try{ webcam.stop(); }catch(e){} webcam=null; }
+    $('camStart').disabled=false; $('camStop').disabled=true;
+  }
+
+  // ---------- 이미지 ----------
+  function onImageFile(){
+    var f=$('imgFile').files[0]; if(!f||!model) return;
+    var img=new Image();
+    img.onload=function(){
+      var view=$('view'); view.innerHTML=''; view.appendChild(img);
+      predictFrom(img);
+    };
+    img.src=URL.createObjectURL(f);
+  }
+
+  // ---------- 모드 전환 ----------
+  function setMode(m){
+    mode=m;
+    $('mCam').classList.toggle('on', m==='cam');
+    $('mImg').classList.toggle('on', m==='img');
+    $('camCtrl').classList.toggle('hide', m!=='cam');
+    $('imgCtrl').classList.toggle('hide', m!=='img');
+    if(m==='cam'){ $('view').innerHTML='웹캠 시작을 누르세요'; }
+    else { stopWebcam(); $('view').innerHTML='사진을 선택하세요'; }
+    lastPred=null; setVerdict(null);
+    document.querySelectorAll('.fill').forEach(function(f){f.style.width='0';});
+    document.querySelectorAll('.pc').forEach(function(t){t.textContent='0%';});
+  }
+
+  // ---------- 사람 vs AI 비교 ----------
+  var rows=[];
+  function buildHumanButtons(){
+    var h=$('humanBtns'); h.innerHTML='';
+    classes.forEach(function(c){
+      var m=meta(c);
+      var b=document.createElement('button');
+      b.className='btn'; b.style.borderColor=m.c; b.innerHTML=m.e+' '+c;
+      b.addEventListener('click',function(){ record(c); });
+      h.appendChild(b);
+    });
+  }
+  function record(human){
+    if(!lastPred){ status('먼저 웹캠/사진으로 예측을 실행하세요.', 'err'); return; }
+    var match = (lastPred.className===human);
+    rows.push({ai:lastPred.className, conf:lastPred.probability, human:human, match:match});
+    renderTable();
+  }
+  function renderTable(){
+    var tb=$('tbody');
+    if(!rows.length){ tb.innerHTML='<tr><td colspan="6" class="empty">아직 기록이 없습니다.</td></tr>'; updateAcc(); return; }
+    tb.innerHTML='';
+    rows.forEach(function(r,i){
+      var ma=meta(r.ai), mh=meta(r.human);
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td>'+(i+1)+'</td>'+
+        '<td><span class="tag" style="background:'+ma.c+'">'+r.ai+'</span></td>'+
+        '<td class="mono">'+(r.conf*100).toFixed(1)+'%</td>'+
+        '<td><span class="tag" style="background:'+mh.c+'">'+r.human+'</span></td>'+
+        '<td class="'+(r.match?'ynY':'ynN')+'">'+(r.match?'O':'X')+'</td>'+
+        '<td><button class="x" data-i="'+i+'">✕</button></td>';
+      tb.appendChild(tr);
+    });
+    tb.querySelectorAll('.x').forEach(function(x){ x.addEventListener('click',function(){ rows.splice(+x.dataset.i,1); renderTable(); }); });
+    updateAcc();
+  }
+  function updateAcc(){
+    var hit=rows.filter(function(r){return r.match;}).length, tot=rows.length;
+    $('accHit').textContent=hit; $('accTot').textContent=tot;
+    $('accVal').textContent= tot? Math.round(hit/tot*100) : 0;
+  }
+  function exportCSV(){
+    var head=['번호','AI예측','신뢰도(%)','사람정답','일치'];
+    var lines=[head.join(',')];
+    rows.forEach(function(r,i){ lines.push([i+1, r.ai, (r.conf*100).toFixed(1), r.human, r.match?'O':'X'].join(',')); });
+    var hit=rows.filter(function(r){return r.match;}).length, tot=rows.length;
+    lines.push(['','','','일치정확도', (tot?Math.round(hit/tot*100):0)+'%'].join(','));
+    var csv='\uFEFF'+lines.join('\r\n');
+    var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+    a.download='AI_사람_비교기록.csv'; document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // ---------- 이벤트 ----------
+  $('loadUrl').addEventListener('click', loadFromURL);
+  $('loadFiles').addEventListener('click', loadFromFiles);
+  $('mCam').addEventListener('click', function(){ setMode('cam'); });
+  $('mImg').addEventListener('click', function(){ setMode('img'); });
+  $('camStart').addEventListener('click', startWebcam);
+  $('camStop').addEventListener('click', stopWebcam);
+  $('imgFile').addEventListener('change', onImageFile);
+  $('clear').addEventListener('click', function(){ rows=[]; renderTable(); });
+  $('csv').addEventListener('click', exportCSV);
+  $('url').addEventListener('keydown', function(e){ if(e.key==='Enter') loadFromURL(); });
+
+  if(typeof tmImage==='undefined' || typeof tf==='undefined'){
+    status('라이브러리를 불러오지 못했습니다. 인터넷 연결(cdn.jsdelivr.net)을 확인하세요.', 'err');
+  }
+})();
+</script>
+</body>
+</html>
